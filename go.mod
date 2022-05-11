@@ -1,4 +1,4 @@
-module baseline
+module github.com/BaiqingL/baseline-testing
 
 go 1.18
 
