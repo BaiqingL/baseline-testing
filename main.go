@@ -8,21 +8,22 @@ import (
 	"strings"
 	"time"
 
-	"internal/protoCustom"
+	pb "github.com/BaiqingL/baseline-testing/internal"
 )
 
+var m map[string]int = make(map[string]int)
+
 type server struct {
-	protoCustom.UnimplementedListenerServer
+	pb.UnimplementedListenerServer
 }
 
-func (s *server) SayHello(ctx context.Context, in *protoCustom.AddRequest) (*protoCustom.AddReply, error) {
-	log.Printf("Received: %v", in.GetName())
-	return &protoCustom.AddReply{Value: 1}, nil
+func (s *server) Add(ctx context.Context, in *pb.AddRequest) (*pb.AddReply, error) {
+	log.Printf("Received: %v", in.GetKey())
+	return &pb.AddReply{Value: 1}, nil
 }
 
 func WordCount(s string) map[string]int {
 	words := strings.Fields(s)
-	m := make(map[string]int)
 	for _, word := range words {
 		m[word] += 1
 	}
