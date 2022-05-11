@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"strings"
 	"time"
 
 	pb "github.com/BaiqingL/baseline-testing/internal"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 var m map[string]int = make(map[string]int)
@@ -17,37 +20,56 @@ type server struct {
 	pb.UnimplementedListenerServer
 }
 
-func (s *server) Add(ctx context.Context, in *pb.AddRequest) (*pb.AddReply, error) {
-	log.Printf("Received: %v", in.GetKey())
-	return &pb.AddReply{Value: 1}, nil
+func (s *server) Add(ctx context.Context, in *pb.AddRequest) (*pb.AddResponse, error) {
+	m[in.GetKey()] += 1
+	return &pb.AddResponse{Value: 1}, nil
 }
-
-func WordCount(s string) map[string]int {
-	words := strings.Fields(s)
-	for _, word := range words {
-		m[word] += 1
+func startServer() {
+	// make a channel
+	s := grpc.NewServer()
+	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", 8080))
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
 	}
-	return m
+	pb.RegisterListenerServer(s, &server{})
+	log.Printf("server listening at %v", lis.Addr())
+	if err := s.Serve(lis); err != nil {
+		log.Fatalf("failed to serve: %v", err)
+	}
+	fmt.Println("server started")
 }
 
 func main() {
-	fileByte, err := ioutil.ReadFile("wordcount.txt")
+	go startServer()
+
+	// client
+	wordBank, err := ioutil.ReadFile("wordcount.txt")
+	words := strings.Fields(string(wordBank))
+	if err != nil {
+		log.Fatalf("failed to read file: %v", err)
+	}
+	conn, err := grpc.Dial("127.0.0.1:8080", grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		fmt.Println(err)
-	} else {
-		fmt.Println("Starting word count...")
-		// loop 10 times
-		for i := 0; i < 10; i++ {
-			start := time.Now()
-			mapOut := WordCount(string(fileByte))
-			duration := time.Since(start)
-			fmt.Println("Duration:", duration)
-			words := 0
-			for _, value := range mapOut {
-				words += value
-			}
-			fmt.Println("Words:", words)
+		return
+	}
+	defer conn.Close()
+	client := pb.NewListenerClient(conn)
+	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Second)
+	defer cancel()
+	fmt.Println("client started")
+	start := time.Now()
+	idx := 0
+	for _, word := range words {
+		_, err := client.Add(ctx, &pb.AddRequest{Key: word, Value: 1})
+		idx++
+		if err != nil {
+			log.Fatalf("could not send: %v", err)
+		}
+		if (idx % 1000) == 0 {
+			fmt.Println(idx)
 		}
 	}
-
+	duration := time.Since(start)
+	fmt.Println("Duration:", duration)
 }
