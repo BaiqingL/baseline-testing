@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	pb "github.com/BaiqingL/baseline-testing/internal"
+	"github.com/BaiqingL/baseline-testing/internal/upstream"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -17,12 +17,12 @@ import (
 var m map[string]int = make(map[string]int)
 
 type server struct {
-	pb.UnimplementedListenerServer
+	upstream.UnimplementedListenerServer
 }
 
-func (s *server) Add(ctx context.Context, in *pb.AddRequest) (*pb.AddResponse, error) {
+func (s *server) Add(ctx context.Context, in *upstream.AddRequest) (*upstream.AddResponse, error) {
 	m[in.GetKey()] += 1
-	return &pb.AddResponse{Value: 1}, nil
+	return &upstream.AddResponse{Value: 1}, nil
 }
 func startServer() {
 	// make a channel
@@ -31,7 +31,7 @@ func startServer() {
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	pb.RegisterListenerServer(s, &server{})
+	upstream.RegisterListenerServer(s, &server{})
 	log.Printf("server listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
@@ -54,14 +54,14 @@ func main() {
 		return
 	}
 	defer conn.Close()
-	client := pb.NewListenerClient(conn)
+	client := upstream.NewListenerClient(conn)
 	ctx, cancel := context.WithTimeout(context.Background(), 600*time.Second)
 	defer cancel()
 	fmt.Println("client started")
 	start := time.Now()
 	idx := 0
 	for _, word := range words {
-		_, err := client.Add(ctx, &pb.AddRequest{Key: word, Value: 1})
+		_, err := client.Add(ctx, &upstream.AddRequest{Key: word, Value: 1})
 		idx++
 		if err != nil {
 			log.Fatalf("could not send: %v", err)
